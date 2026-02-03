@@ -10,7 +10,7 @@ import fs from 'fs';
     });
 })();
 
-const uploadToCloudinary = async (localFilePath) => {
+const uploadOnCloudinary = async (localFilePath) => {
     try {
         if (!localFilePath) return null;
         const response = await cloudinary.uploader.upload(localFilePath, {
@@ -27,4 +27,4 @@ const uploadToCloudinary = async (localFilePath) => {
     }
 }
 
-return { uploadToCloudinary }
+export { uploadOnCloudinary }
