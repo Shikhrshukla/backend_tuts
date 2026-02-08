@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
+import mongoose from "mongoose"
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -39,7 +40,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // check if user already exists, username or email
     const existingUser = await User.findOne({
-        $or: [{ username }, { email }]
+        $or: [{ username: username.toLowerCase() }, { email: email.toLowerCase() }]
     })
     console.log("Existing User: ", existingUser)
     if (existingUser) {
@@ -48,7 +49,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
 
     // check for images and avatar, avatar is mandatory
-    const avatarLocalPath = req.files?.avatar[0]?.path;
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
     // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     let coverImageLocalPath;
@@ -100,10 +101,10 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     return res
-    .status(201)
-    .json(
-        new ApiResponse(201, createdUser, "User registered successfully")
-    )
+        .status(201)
+        .json(
+            new ApiResponse(201, createdUser, "User registered successfully")
+        )
 })
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -118,26 +119,30 @@ const loginUser = asyncHandler(async (req, res) => {
     //     throw new ApiError(400, "Email or username is required");
     // } // if both are not provided
 
-    if (!email && !username) {
+    if (!email?.trim() && !username?.trim()) {
         throw new ApiError(400, "Email or username is required");
-    } // if both are not provided
+    }
 
 
     // validate the user if exists
     const user = await User.findOne({
-        $or: [{ email }, { username }]
+        $or: [{ email: email?.toLowerCase() }, { username: username?.toLowerCase() }]
     })
 
     if (!user) {
-        throw new ApiError(400, "User not found")
+        throw new ApiError(404, "User not found")
     }
 
+
+    if (!password) {
+        throw new ApiError(400, "Password is required")
+    }
 
     // check password (give access if matched)
     const isPasswordValid = await user.isPasswordMatched(password)
 
     if (!isPasswordValid) {
-        throw new ApiError(400, "Invalid password")
+        throw new ApiError(401, "Invalid password")
     }
 
 
@@ -282,7 +287,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const { fullName, email } = req.body
 
-    if (!fullName || !email) {
+    if (!fullName?.trim() || !email?.trim()) {
         throw new ApiError(400, "Full name and email are required")
     }
 
@@ -298,7 +303,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     ).select("-password")
 
     if (!user) {
-        throw new ApiError(401, "User not Found")
+        throw new ApiError(401, "User not found")
     }
 
     // No Need of this code beacuse we are using findByIdAndUpdate
@@ -386,11 +391,11 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     }
 })
 
-const getUserChannelProfile = asyncHandler( async (req, res) => {
-    const {username} = req.params
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params
     console.log("Parameters: ", req.params)
 
-    if(!username?._id){
+    if (!username?.trim()) {
         throw new ApiError(400, "Username is missing")
     }
 
@@ -439,26 +444,26 @@ const getUserChannelProfile = asyncHandler( async (req, res) => {
                 username: 1,
                 avatar: 1,
                 coverImage: 1,
-                subscriptionCount: 1,
+                subscribersCount: 1,
                 channelSubscribedToCount: 1,
                 isSubscribed: 1
             }
         }
     ])
 
-    if(!channel?.length){
+    if (!channel?.length) {
         throw new ApiError(404, "Channel Doesn't Exist")
     }
 
     console.log("Channel: ", channel)
 
     return res
-    .status(200)
-    .json(200, channel[0], "Channel Profile Fetched Successfully")
+        .status(200)
+        .json(new ApiResponse(200, channel[0], "Channel Profile Fetched Successfully"))
 
 })
 
-const getWatchHistory = asyncHandler(async(req, res) => {
+const getWatchHistory = asyncHandler(async (req, res) => {
     const user = await User.aggregate([
         {
             $match: {
@@ -490,8 +495,8 @@ const getWatchHistory = asyncHandler(async(req, res) => {
                         }
                     },
                     {
-                        $addFields:{
-                            owner:{
+                        $addFields: {
+                            owner: {
                                 $first: "$owner"
                             }
                         }
@@ -501,15 +506,19 @@ const getWatchHistory = asyncHandler(async(req, res) => {
         }
     ])
 
+    if (!user?.length) {
+        throw new ApiError(404, "User not found")
+    }
+
     return res
-    .status(200)
-    .json(
-        new ApiResponse(
-            200,
-            user[0].watchHistory,
-            "Watch history fetched successfully"
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                user[0].watchHistory,
+                "Watch history fetched successfully"
+            )
         )
-    )
 })
 
 export {
@@ -522,7 +531,6 @@ export {
     updateAccountDetails,
     updateAvatar,
     updateCoverImage,
-    deleteOldImages,
     getUserChannelProfile,
     getWatchHistory
 }
